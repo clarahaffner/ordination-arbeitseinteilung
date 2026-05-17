@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Calendar, Users, UserCog, LogOut, Plus, X, Check, AlertTriangle,
   ChevronLeft, ChevronRight, Lock, Trash2, Edit3, CalendarX,
@@ -2470,6 +2470,10 @@ export default function App() {
   const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved | error
   const [loadError, setLoadError] = useState(false);
 
+  // Wir merken uns, was wir selbst zuletzt gespeichert haben,
+  // um eigene Updates aus der Echtzeit-Subscription zu ignorieren.
+  const lastSavedRef = useRef(null);
+
   // Initial laden
   useEffect(() => {
     (async () => {
@@ -2488,7 +2492,11 @@ export default function App() {
         if (!initialData.admin) initialData.admin = { password: "admin" };
         // Falls noch keine Daten existieren, einmal speichern
         if (isEmpty) {
+          const serialized = JSON.stringify(initialData);
+          lastSavedRef.current = serialized;
           await saveData(initialData);
+        } else {
+          lastSavedRef.current = JSON.stringify(initialData);
         }
         setData(initialData);
       } catch (e) {
@@ -2500,14 +2508,20 @@ export default function App() {
     })();
   }, []);
 
-  // Echtzeit-Updates: wenn ein anderer Nutzer Daten ändert, übernehmen
+  // Echtzeit-Updates: wenn ein ANDERER Nutzer Daten ändert, übernehmen
+  // (Eigene Updates erkennt man am identischen JSON und werden ignoriert)
   useEffect(() => {
-    if (!data) return;
     const unsubscribe = subscribeToChanges((newData) => {
+      const incoming = JSON.stringify(newData);
+      if (incoming === lastSavedRef.current) {
+        // Eigene Änderung, kommt zurück → ignorieren
+        return;
+      }
+      lastSavedRef.current = incoming;
       setData(newData);
     });
     return unsubscribe;
-  }, [data === null]);
+  }, []);
 
   // Auto-Speichern bei Änderungen
   useEffect(() => {
@@ -2515,6 +2529,8 @@ export default function App() {
     let cancelled = false;
     setSaveStatus("saving");
     const timer = setTimeout(async () => {
+      const serialized = JSON.stringify(data);
+      lastSavedRef.current = serialized;
       const ok = await saveData(data);
       if (!cancelled) {
         setSaveStatus(ok ? "saved" : "error");
