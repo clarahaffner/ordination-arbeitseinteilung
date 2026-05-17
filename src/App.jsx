@@ -2475,13 +2475,19 @@ export default function App() {
     (async () => {
       try {
         const loaded = await loadData();
-        let initialData = loaded || createInitialData();
-        // Migration: stelle sicher, dass skills existiert
-        if (!initialData.skills) {
-          initialData = { ...initialData, skills: DEFAULT_SKILLS.map((s) => ({ ...s })) };
-        }
+        // Wenn keine Daten oder leeres Objekt: Initialdaten verwenden
+        const isEmpty = !loaded || Object.keys(loaded).length === 0 || !loaded.doctors;
+        let initialData = isEmpty ? createInitialData() : loaded;
+        // Migration: stelle sicher, dass alle erwarteten Felder existieren
+        if (!initialData.skills) initialData.skills = DEFAULT_SKILLS.map((s) => ({ ...s }));
+        if (!initialData.doctors) initialData.doctors = [];
+        if (!initialData.employees) initialData.employees = [];
+        if (!initialData.absences) initialData.absences = [];
+        if (!initialData.assignments) initialData.assignments = {};
+        if (!initialData.substitutes) initialData.substitutes = {};
+        if (!initialData.admin) initialData.admin = { password: "admin" };
         // Falls noch keine Daten existieren, einmal speichern
-        if (!loaded) {
+        if (isEmpty) {
           await saveData(initialData);
         }
         setData(initialData);
